@@ -1,0 +1,5 @@
+
+pyserial
+
+# for fw-pack.py
+crcmod

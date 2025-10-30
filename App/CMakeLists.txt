@@ -7,8 +7,8 @@ target_compile_definitions(App INTERFACE PRINTF_INCLUDE_CONFIG_H)
 target_sources(App INTERFACE
     # Drivers
     driver/backlight.c
-    driver/bk4829.c
-    driver/py25q16.c
+    driver/bk4819.c
+    driver/eeprom.c
     driver/gpio.c
     driver/i2c.c
     driver/keyboard.c
