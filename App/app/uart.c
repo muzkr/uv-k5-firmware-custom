@@ -218,19 +218,19 @@ static void SendVersion(void)
 #ifndef ENABLE_FEAT_F4HWN
 static bool IsBadChallenge(const uint32_t *pKey, const uint32_t *pIn, const uint32_t *pResponse)
 {
-    unsigned int i;
-    uint32_t     IV[4];
+    // unsigned int i;
+    // uint32_t     IV[4];
 
-    IV[0] = 0;
-    IV[1] = 0;
-    IV[2] = 0;
-    IV[3] = 0;
+    // IV[0] = 0;
+    // IV[1] = 0;
+    // IV[2] = 0;
+    // IV[3] = 0;
 
-    AES_Encrypt(pKey, IV, pIn, IV, true);
+    // AES_Encrypt(pKey, IV, pIn, IV, true);
 
-    for (i = 0; i < 4; i++)
-        if (IV[i] != pResponse[i])
-            return true;
+    // for (i = 0; i < 4; i++)
+    //     if (IV[i] != pResponse[i])
+    //         return true;
 
     return false;
 }
