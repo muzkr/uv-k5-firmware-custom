@@ -40,13 +40,12 @@
 #ifdef ENABLE_UART
     #include "app/uart.h"
 #endif
-#include "ARMCM0.h"
+#include "py32f0xx.h"
 #include "audio.h"
 #include "board.h"
-#include "bsp/dp32g030/gpio.h"
-#ifdef ENABLE_FEAT_F4HWN_SLEEP
-    #include "bsp/dp32g030/pwmplus.h"
-#endif
+// #ifdef ENABLE_FEAT_F4HWN_SLEEP
+    // #include "driver/backlight.h"
+// #endif
 #include "driver/backlight.h"
 #ifdef ENABLE_FMRADIO
     #include "driver/bk1080.h"
@@ -906,7 +905,7 @@ void APP_Update(void)
             if (gEeprom.BACKLIGHT_TIME == 0) {
                 if (gBlinkCounter == 0 || gBlinkCounter == 250)
                 {
-                    GPIO_FlipBit(&GPIOC->DATA, GPIOC_PIN_FLASHLIGHT);
+                    GPIO_TogglePin(GPIO_PIN_FLASHLIGHT);
                 }
             }
             else
@@ -1176,7 +1175,7 @@ static void CheckKeys(void)
 #ifdef ENABLE_FEAT_F4HWN
     if (gSetting_set_ptt_session)
     {
-        if (!GPIO_CheckBit(&GPIOC->DATA, GPIOC_PIN_PTT) && !SerialConfigInProgress() && gPttOnePushCounter == 0)
+        if (GPIO_IsPttPressed() && !SerialConfigInProgress() && gPttOnePushCounter == 0)
         {   // PTT pressed
             if (++gPttDebounceCounter >= 3)     // 30ms
             {   // start transmitting
@@ -1187,7 +1186,7 @@ static void CheckKeys(void)
                 ProcessKey(KEY_PTT, true, false);
             }
         }
-        else if ((GPIO_CheckBit(&GPIOC->DATA, GPIOC_PIN_PTT) || SerialConfigInProgress()) && gPttOnePushCounter == 1)
+        else if ((!GPIO_IsPttPressed() || SerialConfigInProgress()) && gPttOnePushCounter == 1)
         {   
             // PTT released or serial comms config in progress
             if (++gPttDebounceCounter >= 3 || SerialConfigInProgress())     // 30ms
@@ -1195,14 +1194,14 @@ static void CheckKeys(void)
                 gPttOnePushCounter = 2;
             }
         }
-        else if (!GPIO_CheckBit(&GPIOC->DATA, GPIOC_PIN_PTT) && !SerialConfigInProgress() && gPttOnePushCounter == 2)
+        else if (GPIO_IsPttPressed() && !SerialConfigInProgress() && gPttOnePushCounter == 2)
         {   // PTT pressed again            
             if (++gPttDebounceCounter >= 3 || SerialConfigInProgress())     // 30ms
             {   // stop transmitting
                 gPttOnePushCounter = 3;
             }
         }
-        else if ((GPIO_CheckBit(&GPIOC->DATA, GPIOC_PIN_PTT) || SerialConfigInProgress()) && gPttOnePushCounter == 3)
+        else if ((!GPIO_IsPttPressed() || SerialConfigInProgress()) && gPttOnePushCounter == 3)
         {   // PTT released or serial comms config in progress
             if (++gPttDebounceCounter >= 3 || SerialConfigInProgress())     // 30ms
             {   // stop transmitting
@@ -1225,7 +1224,7 @@ static void CheckKeys(void)
     {
         if (gPttIsPressed)
         {
-            if (GPIO_CheckBit(&GPIOC->DATA, GPIOC_PIN_PTT) || SerialConfigInProgress())
+            if (!GPIO_IsPttPressed() || SerialConfigInProgress())
             {   // PTT released or serial comms config in progress
                 if (++gPttDebounceCounter >= 3 || SerialConfigInProgress())     // 30ms
                 {   // stop transmitting
@@ -1241,7 +1240,7 @@ static void CheckKeys(void)
             else
                 gPttDebounceCounter = 0;
         }
-        else if (!GPIO_CheckBit(&GPIOC->DATA, GPIOC_PIN_PTT) && !SerialConfigInProgress())
+        else if (GPIO_IsPttPressed() && !SerialConfigInProgress())
         {   // PTT pressed
             if (++gPttDebounceCounter >= 3)     // 30ms
             {   // start transmitting
@@ -1627,18 +1626,21 @@ void APP_TimeSlice500ms(void)
             gBacklightCountdown_500ms = 0;
             gPowerSave_10ms = 1;
             gWakeUp = true;
-            PWM_PLUS0_CH0_COMP = 0;
+            // PWM_PLUS0_CH0_COMP = 0;
+            BACKLIGHT_SetBrightness(0);
             ST7565_ShutDown();
         }
         else if(gSleepModeCountdown_500ms != 0 && gSleepModeCountdown_500ms < 21 && gSetting_set_off != 0)
         {
             if(gSleepModeCountdown_500ms % 4 == 0)
             {
-                PWM_PLUS0_CH0_COMP = value[gEeprom.BACKLIGHT_MAX] * 4; // Max brightness
+                // PWM_PLUS0_CH0_COMP = value[gEeprom.BACKLIGHT_MAX] * 4; // Max brightness
+                BACKLIGHT_SetBrightness(gEeprom.BACKLIGHT_MAX);
             }
             else
             {
-                PWM_PLUS0_CH0_COMP = 0;
+                // PWM_PLUS0_CH0_COMP = 0;
+                BACKLIGHT_SetBrightness(0);
             }
         }
     }

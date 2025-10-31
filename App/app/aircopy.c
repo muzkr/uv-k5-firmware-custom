@@ -119,8 +119,8 @@ void AIRCOPY_StorePacket(void)
         g_FSK_Buffer[i + 1] ^= Obfuscation[i % 8];
     }
 
-    uint16_t CRC = CRC_Calculate(&g_FSK_Buffer[1], 2 + 64);
-    if (g_FSK_Buffer[34] != CRC) {
+    uint16_t Crc = CRC_Calculate(&g_FSK_Buffer[1], 2 + 64);
+    if (g_FSK_Buffer[34] != Crc) {
         gErrorsDuringAirCopy++;
         return;
     }

@@ -17,7 +17,7 @@
 #include <string.h>
 
 #if !defined(ENABLE_OVERLAY)
-    #include "ARMCM0.h"
+    // #include "ARMCM0.h"
 #endif
 #include "app/dtmf.h"
 #include "app/generic.h"
@@ -25,7 +25,6 @@
 #include "app/scanner.h"
 #include "audio.h"
 #include "board.h"
-#include "bsp/dp32g030/gpio.h"
 #include "driver/backlight.h"
 #include "driver/bk4819.h"
 #include "driver/eeprom.h"

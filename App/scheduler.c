@@ -26,7 +26,6 @@
 #include "settings.h"
 
 #include "driver/backlight.h"
-#include "bsp/dp32g030/gpio.h"
 #include "driver/gpio.h"
 
 #define DECREMENT(cnt) \
@@ -44,6 +43,7 @@
 
 static volatile uint32_t gGlobalSysTickCounter;
 
+#define SystickHandler SysTick_Handler
 void SystickHandler(void);
 
 // we come here every 10ms

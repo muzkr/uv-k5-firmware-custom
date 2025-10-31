@@ -14,17 +14,17 @@
  *     limitations under the License.
  */
 
-#include "ARMCM0.h"
-#include "systick.h"
-#include "../misc.h"
+#include "py32f0xx.h"
+#include "driver/systick.h"
+#include "misc.h"
 
 // 0x20000324
 static uint32_t gTickMultiplier;
 
 void SYSTICK_Init(void)
 {
-    SysTick_Config(480000);
-    gTickMultiplier = 48;
+    SysTick_Config(SystemCoreClock / 100);
+    gTickMultiplier = SystemCoreClock / 1000000;
 }
 
 void SYSTICK_DelayUs(uint32_t Delay)

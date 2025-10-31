@@ -14,21 +14,10 @@
  *     limitations under the License.
  */
 
-#include "../bsp/dp32g030/crc.h"
-#include "crc.h"
+#include "driver/crc.h"
 
 void CRC_Init(void)
 {
-    CRC_CR = 0
-        | CRC_CR_CRC_EN_BITS_DISABLE
-        | CRC_CR_INPUT_REV_BITS_NORMAL
-        | CRC_CR_INPUT_INV_BITS_NORMAL
-        | CRC_CR_OUTPUT_REV_BITS_NORMAL
-        | CRC_CR_OUTPUT_INV_BITS_NORMAL
-        | CRC_CR_DATA_WIDTH_BITS_8
-        | CRC_CR_CRC_SEL_BITS_CRC_16_CCITT
-        ;
-    CRC_IV = 0;
 }
 
 uint16_t CRC_Calculate(const void *pBuffer, uint16_t Size)
@@ -36,14 +25,24 @@ uint16_t CRC_Calculate(const void *pBuffer, uint16_t Size)
     const uint8_t *pData = (const uint8_t *)pBuffer;
     uint16_t i, Crc;
 
-    CRC_CR = (CRC_CR & ~CRC_CR_CRC_EN_MASK) | CRC_CR_CRC_EN_BITS_ENABLE;
+    Crc = 0;
+    for (i = 0; i < Size; i++)
+    {
+        Crc ^= (pData[i] << 8);
 
-    for (i = 0; i < Size; i++) {
-        CRC_DATAIN = pData[i];
+        for (int j = 0; j < 8; j++)
+        {
+            // Check bit [15]
+            if (Crc >> 15)
+            {
+                Crc = (Crc << 1) ^ 0x1021;
+            }
+            else
+            {
+                Crc = Crc << 1;
+            }
+        }
     }
-    Crc = (uint16_t)CRC_DATAOUT;
-
-    CRC_CR = (CRC_CR & ~CRC_CR_CRC_EN_MASK) | CRC_CR_CRC_EN_BITS_DISABLE;
 
     return Crc;
 }

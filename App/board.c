@@ -20,11 +20,9 @@
     #include "app/fm.h"
 #endif
 #include "board.h"
-#include "bsp/dp32g030/gpio.h"
-#include "bsp/dp32g030/portcon.h"
-#include "bsp/dp32g030/saradc.h"
-#include "bsp/dp32g030/syscon.h"
-#include "driver/adc.h"
+#include "py32f0xx_ll_bus.h"
+#include "py32f0xx_ll_gpio.h"
+#include "py32f0xx_ll_adc.h"
 #include "driver/backlight.h"
 #ifdef ENABLE_FMRADIO
     #include "driver/bk1080.h"
@@ -32,7 +30,6 @@
 
 #include "driver/crc.h"
 #include "driver/eeprom.h"
-#include "driver/flash.h"
 #include "driver/gpio.h"
 #include "driver/system.h"
 #include "driver/st7565.h"
@@ -60,436 +57,124 @@
 
 void BOARD_GPIO_Init(void)
 {
-    GPIOA->DIR |= 0
-        // A7 = UART1 TX default as OUTPUT from bootloader!
-        // A8 = UART1 RX default as INPUT from bootloader!
-        // Key pad + I2C
-        | GPIO_DIR_10_BITS_OUTPUT
-        // Key pad + I2C
-        | GPIO_DIR_11_BITS_OUTPUT
-        // Key pad + Voice chip
-        | GPIO_DIR_12_BITS_OUTPUT
-        // Key pad + Voice chip
-        | GPIO_DIR_13_BITS_OUTPUT
-        ;
-    GPIOA->DIR &= ~(0
-        // Key pad
-        | GPIO_DIR_3_MASK // INPUT
-        // Key pad
-        | GPIO_DIR_4_MASK // INPUT
-        // Key pad
-        | GPIO_DIR_5_MASK // INPUT
-        // Key pad
-        | GPIO_DIR_6_MASK // INPUT
-        );
-    GPIOB->DIR |= 0
-        // ST7565
-        | GPIO_DIR_9_BITS_OUTPUT
-        // ST7565 + SWD IO
-        | GPIO_DIR_11_BITS_OUTPUT
-        // B14 = SWD_CLK assumed INPUT by default
-        // BK1080
-        | GPIO_DIR_15_BITS_OUTPUT
-        ;
-    GPIOC->DIR |= 0
-        // BK4819 SCN
-        | GPIO_DIR_0_BITS_OUTPUT
-        // BK4819 SCL
-        | GPIO_DIR_1_BITS_OUTPUT
-        // BK4819 SDA
-        | GPIO_DIR_2_BITS_OUTPUT
-        // Flash light
-        | GPIO_DIR_3_BITS_OUTPUT
-        // Speaker
-        | GPIO_DIR_4_BITS_OUTPUT
-        ;
-    GPIOC->DIR &= ~(0
-        // PTT button
-        | GPIO_DIR_5_MASK // INPUT
-        );
+    LL_IOP_GRP1_EnableClock(LL_IOP_GRP1_PERIPH_GPIOA | LL_IOP_GRP1_PERIPH_GPIOB | LL_IOP_GRP1_PERIPH_GPIOF);
 
-    #if defined(ENABLE_FMRADIO)
-        GPIO_SetBit(&GPIOB->DATA, GPIOB_PIN_BK1080);
-    #endif
-}
+    LL_GPIO_InitTypeDef GPIO_InitStruct;
+    LL_GPIO_StructInit(&GPIO_InitStruct);
+    GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+    GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_VERY_HIGH;
+    GPIO_InitStruct.Pull = LL_GPIO_PULL_UP;
 
-void BOARD_PORTCON_Init(void)
-{
-    // PORT A pin selection
+    // ------------------
 
-    PORTCON_PORTA_SEL0 &= ~(0
-        // Key pad
-        | PORTCON_PORTA_SEL0_A3_MASK
-        // Key pad
-        | PORTCON_PORTA_SEL0_A4_MASK
-        // Key pad
-        | PORTCON_PORTA_SEL0_A5_MASK
-        // Key pad
-        | PORTCON_PORTA_SEL0_A6_MASK
-        );
-    PORTCON_PORTA_SEL0 |= 0
-        // Key pad
-        | PORTCON_PORTA_SEL0_A3_BITS_GPIOA3
-        // Key pad
-        | PORTCON_PORTA_SEL0_A4_BITS_GPIOA4
-        // Key pad
-        | PORTCON_PORTA_SEL0_A5_BITS_GPIOA5
-        // Key pad
-        | PORTCON_PORTA_SEL0_A6_BITS_GPIOA6
-        // UART1 TX, wasn't cleared in previous step / relying on default value!
-        | PORTCON_PORTA_SEL0_A7_BITS_UART1_TX
+    GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
+    GPIO_InitStruct.Pin = LL_GPIO_PIN_15   //
+                          | LL_GPIO_PIN_13 //
+                          | LL_GPIO_PIN_12 //
+                          | LL_GPIO_PIN_11 //
+                          | LL_GPIO_PIN_10 //
+                          | LL_GPIO_PIN_9  //
+                          | LL_GPIO_PIN_8  //
+                          | LL_GPIO_PIN_7  //
+                          | LL_GPIO_PIN_6  //
+                          | LL_GPIO_PIN_5  //
         ;
 
-    PORTCON_PORTA_SEL1 &= ~(0
-        // Key pad + I2C
-        | PORTCON_PORTA_SEL1_A10_MASK
-        // Key pad + I2C
-        | PORTCON_PORTA_SEL1_A11_MASK
-        // Key pad + Voice chip
-        | PORTCON_PORTA_SEL1_A12_MASK
-        // Key pad + Voice chip
-        | PORTCON_PORTA_SEL1_A13_MASK
-        );
-    PORTCON_PORTA_SEL1 |= 0
-        // UART1 RX, wasn't cleared in previous step / relying on default value!
-        | PORTCON_PORTA_SEL1_A8_BITS_UART1_RX
-        // Battery voltage, wasn't cleared in previous step / relying on default value!
-        | PORTCON_PORTA_SEL1_A9_BITS_SARADC_CH4
-        // Key pad + I2C
-        | PORTCON_PORTA_SEL1_A10_BITS_GPIOA10
-        // Key pad + I2C
-        | PORTCON_PORTA_SEL1_A11_BITS_GPIOA11
-        // Key pad + Voice chip
-        | PORTCON_PORTA_SEL1_A12_BITS_GPIOA12
-        // Key pad + Voice chip
-        | PORTCON_PORTA_SEL1_A13_BITS_GPIOA13
-        // Battery Current, wasn't cleared in previous step / relying on default value!
-        | PORTCON_PORTA_SEL1_A14_BITS_SARADC_CH9
+    LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+    // ------------------
+
+    GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
+    GPIO_InitStruct.Pin = LL_GPIO_PIN_7   //
+                          | LL_GPIO_PIN_6 //
+                          | LL_GPIO_PIN_5 //
+                          | LL_GPIO_PIN_4 //
+                          | LL_GPIO_PIN_3 //
+                          | LL_GPIO_PIN_0 //
         ;
 
-    // PORT B pin selection
+    LL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-    PORTCON_PORTB_SEL0 &= ~(0
-        // SPI0 SSN
-        | PORTCON_PORTB_SEL0_B7_MASK
-        );
-    PORTCON_PORTB_SEL0 |= 0
-        // SPI0 SSN
-        | PORTCON_PORTB_SEL0_B7_BITS_SPI0_SSN
+    // ------------------
+
+    GPIO_InitStruct.Mode = LL_GPIO_MODE_INPUT;
+    GPIO_InitStruct.Pin = LL_GPIO_PIN_1   //
+                          | LL_GPIO_PIN_0 //
         ;
 
-    PORTCON_PORTB_SEL1 &= ~(0
-        // ST7565
-        | PORTCON_PORTB_SEL1_B9_MASK
-        // ST7565 + SWD IO
-        | PORTCON_PORTB_SEL1_B11_MASK
-        // SWD CLK
-        | PORTCON_PORTB_SEL1_B14_MASK
-        // BK1080
-        | PORTCON_PORTB_SEL1_B15_MASK
-        );
-    PORTCON_PORTB_SEL1 |= 0
-        // SPI0 CLK, wasn't cleared in previous step / relying on default value!
-        | PORTCON_PORTB_SEL1_B8_BITS_SPI0_CLK
-        // ST7565
-        | PORTCON_PORTB_SEL1_B9_BITS_GPIOB9
-        // SPI0 MOSI, wasn't cleared in previous step / relying on default value!
-        | PORTCON_PORTB_SEL1_B10_BITS_SPI0_MOSI
-#if defined(ENABLE_SWD)
-        // SWD IO
-        | PORTCON_PORTB_SEL1_B11_BITS_SWDIO
-        // SWD CLK
-        | PORTCON_PORTB_SEL1_B14_BITS_SWCLK
-#else
-        // ST7565
-        | PORTCON_PORTB_SEL1_B11_BITS_GPIOB11
+    LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+    // ------------------
+
+    GPIO_InitStruct.Mode = LL_GPIO_MODE_INPUT;
+    GPIO_InitStruct.Pin = LL_GPIO_PIN_1   //
+                          | LL_GPIO_PIN_0 //
+        ;
+
+    LL_GPIO_Init(GPIOF, &GPIO_InitStruct);
+
+    // ------------------
+
+    LL_GPIO_SetOutputPin(GPIOA, LL_GPIO_PIN_9 | LL_GPIO_PIN_10);
+
+#if defined(ENABLE_FMRADIO)
+    GPIO_SetOutputPin(GPIO_PIN_BK1080);
 #endif
-        ;
-
-    // PORT C pin selection
-
-    PORTCON_PORTC_SEL0 &= ~(0
-        // BK4819 SCN
-        | PORTCON_PORTC_SEL0_C0_MASK
-        // BK4819 SCL
-        | PORTCON_PORTC_SEL0_C1_MASK
-        // BK4819 SDA
-        | PORTCON_PORTC_SEL0_C2_MASK
-        // Flash light
-        | PORTCON_PORTC_SEL0_C3_MASK
-        // Speaker
-        | PORTCON_PORTC_SEL0_C4_MASK
-        // PTT button
-        | PORTCON_PORTC_SEL0_C5_MASK
-        );
-
-    // PORT A pin configuration
-
-    PORTCON_PORTA_IE |= 0
-        // Keypad
-        | PORTCON_PORTA_IE_A3_BITS_ENABLE
-        // Keypad
-        | PORTCON_PORTA_IE_A4_BITS_ENABLE
-        // Keypad
-        | PORTCON_PORTA_IE_A5_BITS_ENABLE
-        // Keypad
-        | PORTCON_PORTA_IE_A6_BITS_ENABLE
-        // A7 = UART1 TX disabled by default
-        // UART1 RX
-        | PORTCON_PORTA_IE_A8_BITS_ENABLE
-        ;
-    PORTCON_PORTA_IE &= ~(0
-        // Keypad + I2C
-        | PORTCON_PORTA_IE_A10_MASK
-        // Keypad + I2C
-        | PORTCON_PORTA_IE_A11_MASK
-        // Keypad + Voice chip
-        | PORTCON_PORTA_IE_A12_MASK
-        // Keypad + Voice chip
-        | PORTCON_PORTA_IE_A13_MASK
-        );
-
-    PORTCON_PORTA_PU |= 0
-        // Keypad
-        | PORTCON_PORTA_PU_A3_BITS_ENABLE
-        // Keypad
-        | PORTCON_PORTA_PU_A4_BITS_ENABLE
-        // Keypad
-        | PORTCON_PORTA_PU_A5_BITS_ENABLE
-        // Keypad
-        | PORTCON_PORTA_PU_A6_BITS_ENABLE
-        ;
-    PORTCON_PORTA_PU &= ~(0
-        // Keypad + I2C
-        | PORTCON_PORTA_PU_A10_MASK
-        // Keypad + I2C
-        | PORTCON_PORTA_PU_A11_MASK
-        // Keypad + Voice chip
-        | PORTCON_PORTA_PU_A12_MASK
-        // Keypad + Voice chip
-        | PORTCON_PORTA_PU_A13_MASK
-        );
-
-    PORTCON_PORTA_PD &= ~(0
-        // Keypad
-        | PORTCON_PORTA_PD_A3_MASK
-        // Keypad
-        | PORTCON_PORTA_PD_A4_MASK
-        // Keypad
-        | PORTCON_PORTA_PD_A5_MASK
-        // Keypad
-        | PORTCON_PORTA_PD_A6_MASK
-        // Keypad + I2C
-        | PORTCON_PORTA_PD_A10_MASK
-        // Keypad + I2C
-        | PORTCON_PORTA_PD_A11_MASK
-        // Keypad + Voice chip
-        | PORTCON_PORTA_PD_A12_MASK
-        // Keypad + Voice chip
-        | PORTCON_PORTA_PD_A13_MASK
-        );
-
-    PORTCON_PORTA_OD |= 0
-        // Keypad
-        | PORTCON_PORTA_OD_A3_BITS_ENABLE
-        // Keypad
-        | PORTCON_PORTA_OD_A4_BITS_ENABLE
-        // Keypad
-        | PORTCON_PORTA_OD_A5_BITS_ENABLE
-        // Keypad
-        | PORTCON_PORTA_OD_A6_BITS_ENABLE
-        ;
-    PORTCON_PORTA_OD &= ~(0
-        // Keypad + I2C
-        | PORTCON_PORTA_OD_A10_MASK
-        // Keypad + I2C
-        | PORTCON_PORTA_OD_A11_MASK
-        // Keypad + Voice chip
-        | PORTCON_PORTA_OD_A12_MASK
-        // Keypad + Voice chip
-        | PORTCON_PORTA_OD_A13_MASK
-        );
-
-    // PORT B pin configuration
-
-    PORTCON_PORTB_IE |= 0
-        | PORTCON_PORTB_IE_B14_BITS_ENABLE
-        ;
-    PORTCON_PORTB_IE &= ~(0
-        // Back light
-        | PORTCON_PORTB_IE_B6_MASK
-        // UART1
-        | PORTCON_PORTB_IE_B7_MASK
-        | PORTCON_PORTB_IE_B8_MASK
-        // ST7565
-        | PORTCON_PORTB_IE_B9_MASK
-        // SPI0 MOSI
-        | PORTCON_PORTB_IE_B10_MASK
-#if !defined(ENABLE_SWD)
-        // ST7565
-        | PORTCON_PORTB_IE_B11_MASK
-#endif
-        // BK1080
-        | PORTCON_PORTB_IE_B15_MASK
-        );
-
-    PORTCON_PORTB_PU &= ~(0
-        // Back light
-        | PORTCON_PORTB_PU_B6_MASK
-        // ST7565
-        | PORTCON_PORTB_PU_B9_MASK
-        // ST7565 + SWD IO
-        | PORTCON_PORTB_PU_B11_MASK
-        // SWD CLK
-        | PORTCON_PORTB_PU_B14_MASK
-        // BK1080
-        | PORTCON_PORTB_PU_B15_MASK
-        );
-
-    PORTCON_PORTB_PD &= ~(0
-        // Back light
-        | PORTCON_PORTB_PD_B6_MASK
-        // ST7565
-        | PORTCON_PORTB_PD_B9_MASK
-        // ST7565 + SWD IO
-        | PORTCON_PORTB_PD_B11_MASK
-        // SWD CLK
-        | PORTCON_PORTB_PD_B14_MASK
-        // BK1080
-        | PORTCON_PORTB_PD_B15_MASK
-        );
-
-    PORTCON_PORTB_OD &= ~(0
-        // Back light
-        | PORTCON_PORTB_OD_B6_MASK
-        // ST7565
-        | PORTCON_PORTB_OD_B9_MASK
-        // ST7565 + SWD IO
-        | PORTCON_PORTB_OD_B11_MASK
-        // BK1080
-        | PORTCON_PORTB_OD_B15_MASK
-        );
-
-    PORTCON_PORTB_OD |= 0
-        // SWD CLK
-        | PORTCON_PORTB_OD_B14_BITS_ENABLE
-        ;
-
-    // PORT C pin configuration
-
-    PORTCON_PORTC_IE |= 0
-        // PTT button
-        | PORTCON_PORTC_IE_C5_BITS_ENABLE
-        ;
-    PORTCON_PORTC_IE &= ~(0
-        // BK4819 SCN
-        | PORTCON_PORTC_IE_C0_MASK
-        // BK4819 SCL
-        | PORTCON_PORTC_IE_C1_MASK
-        // BK4819 SDA
-        | PORTCON_PORTC_IE_C2_MASK
-        // Flash Light
-        | PORTCON_PORTC_IE_C3_MASK
-        // Speaker
-        | PORTCON_PORTC_IE_C4_MASK
-        );
-
-    PORTCON_PORTC_PU |= 0
-        // PTT button
-        | PORTCON_PORTC_PU_C5_BITS_ENABLE
-        ;
-    PORTCON_PORTC_PU &= ~(0
-        // BK4819 SCN
-        | PORTCON_PORTC_PU_C0_MASK
-        // BK4819 SCL
-        | PORTCON_PORTC_PU_C1_MASK
-        // BK4819 SDA
-        | PORTCON_PORTC_PU_C2_MASK
-        // Flash Light
-        | PORTCON_PORTC_PU_C3_MASK
-        // Speaker
-        | PORTCON_PORTC_PU_C4_MASK
-        );
-
-    PORTCON_PORTC_PD &= ~(0
-        // BK4819 SCN
-        | PORTCON_PORTC_PD_C0_MASK
-        // BK4819 SCL
-        | PORTCON_PORTC_PD_C1_MASK
-        // BK4819 SDA
-        | PORTCON_PORTC_PD_C2_MASK
-        // Flash Light
-        | PORTCON_PORTC_PD_C3_MASK
-        // Speaker
-        | PORTCON_PORTC_PD_C4_MASK
-        // PTT Button
-        | PORTCON_PORTC_PD_C5_MASK
-        );
-
-    PORTCON_PORTC_OD &= ~(0
-        // BK4819 SCN
-        | PORTCON_PORTC_OD_C0_MASK
-        // BK4819 SCL
-        | PORTCON_PORTC_OD_C1_MASK
-        // BK4819 SDA
-        | PORTCON_PORTC_OD_C2_MASK
-        // Flash Light
-        | PORTCON_PORTC_OD_C3_MASK
-        // Speaker
-        | PORTCON_PORTC_OD_C4_MASK
-        );
-    PORTCON_PORTC_OD |= 0
-        // BK4819 SCN
-        | PORTCON_PORTC_OD_C0_BITS_DISABLE
-        // BK4819 SCL
-        | PORTCON_PORTC_OD_C1_BITS_DISABLE
-        // BK4819 SDA
-        | PORTCON_PORTC_OD_C2_BITS_DISABLE
-        // Flash Light
-        | PORTCON_PORTC_OD_C3_BITS_DISABLE
-        // Speaker
-        | PORTCON_PORTC_OD_C4_BITS_DISABLE
-        // PTT button
-        | PORTCON_PORTC_OD_C5_BITS_ENABLE
-        ;
 }
 
 void BOARD_ADC_Init(void)
 {
-    ADC_Config_t Config;
+    LL_ADC_Reset(ADC1);
+    LL_APB1_GRP2_EnableClock(LL_APB1_GRP2_PERIPH_ADC1);
 
-    Config.CLK_SEL            = SYSCON_CLK_SEL_W_SARADC_SMPL_VALUE_DIV2;
-    Config.CH_SEL             = ADC_CH4 | ADC_CH9;
-    Config.AVG                = SARADC_CFG_AVG_VALUE_8_SAMPLE;
-    Config.CONT               = SARADC_CFG_CONT_VALUE_SINGLE;
-    Config.MEM_MODE           = SARADC_CFG_MEM_MODE_VALUE_CHANNEL;
-    Config.SMPL_CLK           = SARADC_CFG_SMPL_CLK_VALUE_INTERNAL;
-    Config.SMPL_WIN           = SARADC_CFG_SMPL_WIN_VALUE_15_CYCLE;
-    Config.SMPL_SETUP         = SARADC_CFG_SMPL_SETUP_VALUE_1_CYCLE;
-    Config.ADC_TRIG           = SARADC_CFG_ADC_TRIG_VALUE_CPU;
-    Config.CALIB_KD_VALID     = SARADC_CALIB_KD_VALID_VALUE_YES;
-    Config.CALIB_OFFSET_VALID = SARADC_CALIB_OFFSET_VALID_VALUE_YES;
-    Config.DMA_EN             = SARADC_CFG_DMA_EN_VALUE_DISABLE;
-    Config.IE_CHx_EOC         = SARADC_IE_CHx_EOC_VALUE_NONE;
-    Config.IE_FIFO_FULL       = SARADC_IE_FIFO_FULL_VALUE_DISABLE;
-    Config.IE_FIFO_HFULL      = SARADC_IE_FIFO_HFULL_VALUE_DISABLE;
+    LL_ADC_StartCalibration(ADC1);
+    while (LL_ADC_IsCalibrationOnGoing(ADC1))
+    {
+        SYSTEM_DelayMs(10);
+    }
 
-    ADC_Configure(&Config);
-    ADC_Enable();
-    ADC_SoftReset();
+    LL_GPIO_SetPinMode(GPIOA, LL_GPIO_PIN_4, LL_GPIO_MODE_ANALOG);
+    LL_GPIO_SetPinMode(GPIOB, LL_GPIO_PIN_1, LL_GPIO_MODE_ANALOG);
+
+    LL_ADC_SetCommonPathInternalCh(__LL_ADC_COMMON_INSTANCE(ADC1), LL_ADC_PATH_INTERNAL_NONE);
+
+    LL_ADC_InitTypeDef ADC_InitStruct;
+    ADC_InitStruct.Clock = LL_ADC_CLOCK_SYNC_PCLK_DIV4;
+    ADC_InitStruct.Resolution = LL_ADC_RESOLUTION_12B;
+    ADC_InitStruct.DataAlignment = LL_ADC_DATA_ALIGN_RIGHT;
+    ADC_InitStruct.LowPowerMode = LL_ADC_LP_AUTOWAIT;
+    LL_ADC_Init(ADC1, &ADC_InitStruct);
+
+    LL_ADC_SetSamplingTimeCommonChannels(ADC1, LL_ADC_SAMPLINGTIME_28CYCLES_5);
+    LL_ADC_REG_SetTriggerSource(ADC1, LL_ADC_REG_TRIG_SOFTWARE);
+    LL_ADC_REG_SetOverrun(ADC1, LL_ADC_REG_OVR_DATA_OVERWRITTEN);
+    LL_ADC_REG_SetSequencerDiscont(ADC1, LL_ADC_REG_SEQ_DISCONT_DISABLE);
+    LL_ADC_REG_SetContinuousMode(ADC1, LL_ADC_REG_CONV_SINGLE);
 }
 
 void BOARD_ADC_GetBatteryInfo(uint16_t *pVoltage, uint16_t *pCurrent)
 {
-    ADC_Start();
-    while (!ADC_CheckEndOfConversion(ADC_CH9)) {}
-    *pVoltage = ADC_GetValue(ADC_CH4);
-    *pCurrent = ADC_GetValue(ADC_CH9);
+    static const uint32_t CHANNELS[2] = {LL_ADC_CHANNEL_4, LL_ADC_CHANNEL_9};
+
+    uint16_t Data[2];
+    for (int i = 0; i < 2; i++)
+    {
+        LL_ADC_REG_SetSequencerChannels(ADC1, CHANNELS[i]);
+        LL_ADC_Enable(ADC1);
+        SYSTEM_DelayMs(1);
+        LL_ADC_REG_StartConversion(ADC1);
+        while (!LL_ADC_IsActiveFlag_EOC(ADC1))
+            ;
+        LL_ADC_ClearFlag_EOC(ADC1);
+        Data[i] = LL_ADC_REG_ReadConversionData12(ADC1);
+    }
+
+    *pVoltage = Data[0];
+    *pCurrent = Data[1];
 }
 
 void BOARD_Init(void)
 {
-    BOARD_PORTCON_Init();
     BOARD_GPIO_Init();
     BACKLIGHT_InitHardware();
     BOARD_ADC_Init();

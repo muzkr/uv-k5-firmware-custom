@@ -15,7 +15,6 @@
  *     limitations under the License.
  */
 
-#include "bsp/dp32g030/gpio.h"
 #include "driver/gpio.h"
 #include "driver/keyboard.h"
 #include "driver/systick.h"
@@ -27,68 +26,81 @@ KEY_Code_t gKeyReading1     = KEY_INVALID;
 uint16_t   gDebounceCounter = 0;
 bool       gWasFKeyPressed  = false;
 
-static const struct {
+static const uint32_t ROWS[4] =
+{
+    GPIO_MAKE_PIN(GPIOF, LL_GPIO_PIN_0),
+    GPIO_MAKE_PIN(GPIOF, LL_GPIO_PIN_1),
+    GPIO_MAKE_PIN(GPIOA, LL_GPIO_PIN_0),
+    GPIO_MAKE_PIN(GPIOA, LL_GPIO_PIN_1),
+};
 
-    // Using a 16 bit pre-calculated shift and invert is cheaper
-    // than using 8 bit and doing shift and invert in code.
-    uint16_t set_to_zero_mask;
+static const uint32_t COLS[4] =
+{
+    GPIO_MAKE_PIN(GPIOA, LL_GPIO_PIN_5),
+    GPIO_MAKE_PIN(GPIOA, LL_GPIO_PIN_6),
+    GPIO_MAKE_PIN(GPIOA, LL_GPIO_PIN_7),
+    GPIO_MAKE_PIN(GPIOB, LL_GPIO_PIN_0),
+};
 
-    // We are very fortunate.
-    // The key and pin defines fit together in a single u8, making this very efficient
-    struct {
-        KEY_Code_t key : 5;
-        uint8_t    pin : 3; // Pin 6 is highest
-    } pins[4];
+static inline void set_cols()
+{
+    for (uint32_t i = 0; i < 4; i++)
+    {
+        GPIO_SetOutputPin(COLS[i]);
+    }
+}
 
-} keyboard[] = {
+static inline void reset_col(uint32_t index)
+{
+    GPIO_ResetOutputPin(COLS[index]);
+}
 
-    {   // Zero row
+static inline uint32_t read_rows()
+{
+    uint32_t n = 0;
+    for (uint32_t i = 0; i < 4; i++)
+    {
+        if (GPIO_IsInputPinSet(ROWS[i]))
+        {
+            n |= (1u << i);
+        }
+    }
+    return n;
+}
+
+static const KEY_Code_t keyboard[5][4] = {
+    {   // Zero col
         // Set to zero to handle special case of nothing pulled down
-        .set_to_zero_mask = 0xffff,
-        .pins = {
-            { .key = KEY_SIDE1,   .pin = GPIOA_PIN_KEYBOARD_0},
-            { .key = KEY_SIDE2,   .pin = GPIOA_PIN_KEYBOARD_1},
+        KEY_SIDE1, 
+        KEY_SIDE2, 
 
-            // Duplicate to fill the array with valid values
-            { .key = KEY_INVALID, .pin = GPIOA_PIN_KEYBOARD_1},
-            { .key = KEY_INVALID, .pin = GPIOA_PIN_KEYBOARD_1}
-        }
+        // Duplicate to fill the array with valid values
+        KEY_INVALID, 
+        KEY_INVALID, 
     },
-    {   // First row
-        .set_to_zero_mask = ~(1u << GPIOA_PIN_KEYBOARD_4) & 0xffff,
-        .pins = {
-            { .key = KEY_MENU,  .pin = GPIOA_PIN_KEYBOARD_0},
-            { .key = KEY_1,     .pin = GPIOA_PIN_KEYBOARD_1},
-            { .key = KEY_4,     .pin = GPIOA_PIN_KEYBOARD_2},
-            { .key = KEY_7,     .pin = GPIOA_PIN_KEYBOARD_3}
-        }
+    {   // First col
+        KEY_MENU, 
+        KEY_1, 
+        KEY_4, 
+        KEY_7, 
     },
-    {   // Second row
-        .set_to_zero_mask = ~(1u << GPIOA_PIN_KEYBOARD_5) & 0xffff,
-        .pins = {
-            { .key = KEY_UP,    .pin = GPIOA_PIN_KEYBOARD_0},
-            { .key = KEY_2 ,    .pin = GPIOA_PIN_KEYBOARD_1},
-            { .key = KEY_5 ,    .pin = GPIOA_PIN_KEYBOARD_2},
-            { .key = KEY_8 ,    .pin = GPIOA_PIN_KEYBOARD_3}
-        }
+    {   // Second col
+        KEY_UP, 
+        KEY_2 , 
+        KEY_5 , 
+        KEY_8 , 
     },
-    {   // Third row
-        .set_to_zero_mask = ~(1u << GPIOA_PIN_KEYBOARD_6) & 0xffff,
-        .pins = {
-            { .key = KEY_DOWN,  .pin = GPIOA_PIN_KEYBOARD_0},
-            { .key = KEY_3   ,  .pin = GPIOA_PIN_KEYBOARD_1},
-            { .key = KEY_6   ,  .pin = GPIOA_PIN_KEYBOARD_2},
-            { .key = KEY_9   ,  .pin = GPIOA_PIN_KEYBOARD_3}
-        }
+    {   // Third col
+        KEY_DOWN, 
+        KEY_3   , 
+        KEY_6   , 
+        KEY_9   , 
     },
-    {   // Fourth row
-        .set_to_zero_mask = ~(1u << GPIOA_PIN_KEYBOARD_7) & 0xffff,
-        .pins = {
-            { .key = KEY_EXIT,  .pin = GPIOA_PIN_KEYBOARD_0},
-            { .key = KEY_STAR,  .pin = GPIOA_PIN_KEYBOARD_1},
-            { .key = KEY_0   ,  .pin = GPIOA_PIN_KEYBOARD_2},
-            { .key = KEY_F   ,  .pin = GPIOA_PIN_KEYBOARD_3}
-        }
+    {   // Fourth col
+        KEY_EXIT, 
+        KEY_STAR, 
+        KEY_0   , 
+        KEY_F   , 
     }
 };
 
@@ -96,43 +108,41 @@ KEY_Code_t KEYBOARD_Poll(void)
 {
     KEY_Code_t Key = KEY_INVALID;
 
-//  if (!GPIO_CheckBit(&GPIOC->DATA, GPIOC_PIN_PTT))
-//      return KEY_PTT;
+    //  if (!GPIO_CheckBit(&GPIOC->DATA, GPIOC_PIN_PTT))
+    //      return KEY_PTT;
 
     // *****************
 
-    for (unsigned int j = 0; j < ARRAY_SIZE(keyboard); j++)
+    for (unsigned int j = 0; j < 5; j++)
     {
-        uint16_t reg;
+        uint32_t reg;
         unsigned int i;
         unsigned int k;
 
         // Set all high
-        GPIOA->DATA |=  1u << GPIOA_PIN_KEYBOARD_4 |
-                        1u << GPIOA_PIN_KEYBOARD_5 |
-                        1u << GPIOA_PIN_KEYBOARD_6 |
-                        1u << GPIOA_PIN_KEYBOARD_7;
+        set_cols();
 
         // Clear the pin we are selecting
-        GPIOA->DATA &= keyboard[j].set_to_zero_mask;
+        if (j > 0)
+            reset_col(j - 1);
 
         // Read all 4 GPIO pins at once .. with de-noise, max of 8 sample loops
-        for (i = 0, k = 0, reg = 0; i < 3 && k < 8; i++, k++) {
+        for (i = 0, k = 0, reg = 0; i < 3 && k < 8; i++, k++)
+        {
             SYSTICK_DelayUs(1);
-            uint16_t reg2 = GPIOA->DATA;
+            uint32_t reg2 = read_rows();
             i *= reg == reg2;
             reg = reg2;
         }
 
         if (i < 3)
-            break;  // noise is too bad
+            break; // noise is too bad
 
-        for (unsigned int i = 0; i < ARRAY_SIZE(keyboard[j].pins); i++)
+        for (unsigned int i = 0; i < 4; i++)
         {
-            const uint16_t mask = 1u << keyboard[j].pins[i].pin;
-            if (!(reg & mask))
+            if (!(reg & (1u << i)))
             {
-                Key = keyboard[j].pins[i].key;
+                Key = keyboard[j][i];
                 break;
             }
         }
@@ -146,8 +156,8 @@ KEY_Code_t KEYBOARD_Poll(void)
     I2C_Stop();
 
     // Reset VOICE pins
-    GPIO_ClearBit(&GPIOA->DATA, GPIOA_PIN_KEYBOARD_6);
-    GPIO_SetBit(  &GPIOA->DATA, GPIOA_PIN_KEYBOARD_7);
+    GPIO_ResetOutputPin(COLS[2]);
+    GPIO_SetOutputPin(COLS[3]);
 
     return Key;
 }

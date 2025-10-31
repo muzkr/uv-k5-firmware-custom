@@ -16,73 +16,91 @@
 
 #include <stdbool.h>
 #include <string.h>
-#include "bsp/dp32g030/dma.h"
-#include "bsp/dp32g030/syscon.h"
-#include "bsp/dp32g030/uart.h"
+#include "py32f0xx_ll_bus.h"
+#include "py32f0xx_ll_system.h"
+#include "py32f0xx_ll_dma.h"
+#include "py32f0xx_ll_gpio.h"
+#include "py32f0xx_ll_usart.h"
 #include "driver/uart.h"
+
+#define DMA_CHANNEL LL_DMA_CHANNEL_2
 
 static bool UART_IsLogEnabled;
 uint8_t UART_DMA_Buffer[256];
 
 void UART_Init(void)
 {
-    uint32_t Delta;
-    uint32_t Positive;
-    uint32_t Frequency;
+    // PA2 TX
+    // PA3 RX
 
-    UART1->CTRL = (UART1->CTRL & ~UART_CTRL_UARTEN_MASK) | UART_CTRL_UARTEN_BITS_DISABLE;
-    Delta = SYSCON_RC_FREQ_DELTA;
-    Positive = (Delta & SYSCON_RC_FREQ_DELTA_RCHF_SIG_MASK) >> SYSCON_RC_FREQ_DELTA_RCHF_SIG_SHIFT;
-    Frequency = (Delta & SYSCON_RC_FREQ_DELTA_RCHF_DELTA_MASK) >> SYSCON_RC_FREQ_DELTA_RCHF_DELTA_SHIFT;
-    if (Positive) {
-        Frequency += 48000000U;
-    } else {
-        Frequency = 48000000U - Frequency;
-    }
+    LL_IOP_GRP1_EnableClock(LL_IOP_GRP1_PERIPH_GPIOA);
+    LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_DMA1);
+    LL_APB1_GRP2_EnableClock(LL_APB1_GRP2_PERIPH_SYSCFG);
+    LL_APB1_GRP2_EnableClock(LL_APB1_GRP2_PERIPH_USART1);
 
-    UART1->BAUD = Frequency / 39053U;
-    UART1->CTRL = UART_CTRL_RXEN_BITS_ENABLE | UART_CTRL_TXEN_BITS_ENABLE | UART_CTRL_RXDMAEN_BITS_ENABLE;
-    UART1->RXTO = 4;
-    UART1->FC = 0;
-    UART1->FIFO = UART_FIFO_RF_LEVEL_BITS_8_BYTE | UART_FIFO_RF_CLR_BITS_ENABLE | UART_FIFO_TF_CLR_BITS_ENABLE;
-    UART1->IE = 0;
+    // Pins
+    do
+    {
+        LL_GPIO_InitTypeDef GPIO_InitStruct;
 
-    DMA_CTR = (DMA_CTR & ~DMA_CTR_DMAEN_MASK) | DMA_CTR_DMAEN_BITS_DISABLE;
+        LL_GPIO_StructInit(&GPIO_InitStruct);
+        GPIO_InitStruct.Mode = LL_GPIO_MODE_ALTERNATE;
+        GPIO_InitStruct.Alternate = LL_GPIO_AF1_USART1;
+        GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_VERY_HIGH;
+        GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+        GPIO_InitStruct.Pull = LL_GPIO_PULL_UP;
 
-    DMA_CH0->MSADDR = (uint32_t)(uintptr_t)&UART1->RDR;
-    DMA_CH0->MDADDR = (uint32_t)(uintptr_t)UART_DMA_Buffer;
-    DMA_CH0->MOD = 0
-        // Source
-        | DMA_CH_MOD_MS_ADDMOD_BITS_NONE
-        | DMA_CH_MOD_MS_SIZE_BITS_8BIT
-        | DMA_CH_MOD_MS_SEL_BITS_HSREQ_MS1
-        // Destination
-        | DMA_CH_MOD_MD_ADDMOD_BITS_INCREMENT
-        | DMA_CH_MOD_MD_SIZE_BITS_8BIT
-        | DMA_CH_MOD_MD_SEL_BITS_SRAM
-        ;
-    DMA_INTEN = 0;
-    DMA_INTST = 0
-        | DMA_INTST_CH0_TC_INTST_BITS_SET
-        | DMA_INTST_CH1_TC_INTST_BITS_SET
-        | DMA_INTST_CH2_TC_INTST_BITS_SET
-        | DMA_INTST_CH3_TC_INTST_BITS_SET
-        | DMA_INTST_CH0_THC_INTST_BITS_SET
-        | DMA_INTST_CH1_THC_INTST_BITS_SET
-        | DMA_INTST_CH2_THC_INTST_BITS_SET
-        | DMA_INTST_CH3_THC_INTST_BITS_SET
-        ;
-    DMA_CH0->CTR = 0
-        | DMA_CH_CTR_CH_EN_BITS_ENABLE
-        | ((0xFF << DMA_CH_CTR_LENGTH_SHIFT) & DMA_CH_CTR_LENGTH_MASK)
-        | DMA_CH_CTR_LOOP_BITS_ENABLE
-        | DMA_CH_CTR_PRI_BITS_MEDIUM
-        ;
-    UART1->IF = UART_IF_RXTO_BITS_SET;
+        //
+        GPIO_InitStruct.Pin = LL_GPIO_PIN_2;
+        LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+        GPIO_InitStruct.Pin = LL_GPIO_PIN_3;
+        LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+    } while (0);
 
-    DMA_CTR = (DMA_CTR & ~DMA_CTR_DMAEN_MASK) | DMA_CTR_DMAEN_BITS_ENABLE;
+    // DMA
+    do
+    {
+        LL_DMA_DisableChannel(DMA1, DMA_CHANNEL);
 
-    UART1->CTRL |= UART_CTRL_UARTEN_BITS_ENABLE;
+        LL_DMA_InitTypeDef DMA_InitStruct;
+        LL_DMA_StructInit(&DMA_InitStruct);
+
+        DMA_InitStruct.Direction = LL_DMA_DIRECTION_PERIPH_TO_MEMORY;
+        DMA_InitStruct.Mode = LL_DMA_MODE_CIRCULAR;
+        DMA_InitStruct.PeriphOrM2MSrcAddress = LL_USART_DMA_GetRegAddr(USART1);
+        DMA_InitStruct.PeriphOrM2MSrcIncMode = LL_DMA_PERIPH_NOINCREMENT;
+        DMA_InitStruct.PeriphOrM2MSrcDataSize = LL_DMA_PDATAALIGN_BYTE;
+        DMA_InitStruct.MemoryOrM2MDstAddress = (uint32_t)UART_DMA_Buffer;
+        DMA_InitStruct.MemoryOrM2MDstDataSize = LL_DMA_MDATAALIGN_BYTE;
+        DMA_InitStruct.MemoryOrM2MDstIncMode = LL_DMA_MEMORY_INCREMENT;
+        DMA_InitStruct.NbData = sizeof(UART_DMA_Buffer);
+        DMA_InitStruct.Priority = LL_DMA_PRIORITY_HIGH;
+
+        LL_DMA_Init(DMA1, DMA_CHANNEL, &DMA_InitStruct);
+
+        LL_SYSCFG_SetDMARemap_CH2(LL_SYSCFG_DMA_MAP_USART1_RX);
+
+    } while (0);
+
+    // USART
+    do
+    {
+        LL_USART_Disable(USART1);
+
+        LL_USART_InitTypeDef USART_InitStruct;
+        LL_USART_StructInit(&USART_InitStruct);
+
+        USART_InitStruct.BaudRate = 38400;
+        USART_InitStruct.TransferDirection = LL_USART_DIRECTION_TX_RX;
+        LL_USART_Init(USART1, &USART_InitStruct);
+
+        LL_USART_EnableDMAReq_RX(USART1);
+
+    } while (0);
+
+    LL_DMA_EnableChannel(DMA1, DMA_CHANNEL);
+    LL_USART_Enable(USART1);
+    LL_USART_TransmitData8(USART1, 0);
 }
 
 void UART_Send(const void *pBuffer, uint32_t Size)
@@ -91,9 +109,9 @@ void UART_Send(const void *pBuffer, uint32_t Size)
     uint32_t i;
 
     for (i = 0; i < Size; i++) {
-        UART1->TDR = pData[i];
-        while ((UART1->IF & UART_IF_TXFIFO_FULL_MASK) != UART_IF_TXFIFO_FULL_BITS_NOT_SET) {
-        }
+        while (!LL_USART_IsActiveFlag_TXE(USART1))
+            ;
+        LL_USART_TransmitData8(USART1, pData[i]);
     }
 }
 

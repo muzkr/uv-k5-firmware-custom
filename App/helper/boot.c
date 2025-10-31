@@ -19,7 +19,6 @@
 #ifdef ENABLE_AIRCOPY
     #include "app/aircopy.h"
 #endif
-#include "bsp/dp32g030/gpio.h"
 #include "driver/bk4819.h"
 #include "driver/keyboard.h"
 #include "driver/gpio.h"
@@ -38,7 +37,7 @@ BOOT_Mode_t BOOT_GetMode(void)
 
     for (i = 0; i < 2; i++)
     {
-        if (GPIO_CheckBit(&GPIOC->DATA, GPIOC_PIN_PTT))
+        if (!GPIO_IsPttPressed())
             return BOOT_MODE_NORMAL;   // PTT not pressed
         Keys[i] = KEYBOARD_Poll();
         SYSTEM_DelayMs(20);

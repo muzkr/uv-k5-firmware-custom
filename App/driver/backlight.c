@@ -1,4 +1,5 @@
-/* Copyright 2023 Dual Tachyon
+/* Copyright 2025 muzkr https://github.com/muzkr
+ * Copyright 2023 Dual Tachyon
  * https://github.com/DualTachyon
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,18 +15,24 @@
  *     limitations under the License.
  */
 
-#include "backlight.h"
-#include "bsp/dp32g030/gpio.h"
-#include "bsp/dp32g030/pwmplus.h"
-#include "bsp/dp32g030/portcon.h"
+#include "driver/backlight.h"
+#include "py32f0xx_ll_system.h"
+#include "py32f0xx_ll_dma.h"
+#include "py32f0xx_ll_bus.h"
+#include "py32f0xx_ll_tim.h"
 #include "driver/gpio.h"
+#include "driver/systick.h"
 #include "settings.h"
+#include "external/printf/printf.h"
 
 #ifdef ENABLE_FEAT_F4HWN
     #include "driver/system.h"
     #include "audio.h"
     #include "misc.h"
 #endif
+
+#define TIMx TIM1
+#define TIM_CHANNEL LL_TIM_CHANNEL_CH1
 
 // this is decremented once every 500ms
 uint16_t gBacklightCountdown_500ms = 0;
@@ -41,29 +48,48 @@ bool backlightOn;
 
 void BACKLIGHT_InitHardware()
 {
-    // 48MHz / 94 / 1024 ~ 500Hz
-    const uint32_t PWM_FREQUENCY_HZ =  25000;
-    PWM_PLUS0_CLKSRC |= ((48000000 / 1024 / PWM_FREQUENCY_HZ) << 16);
-    PWM_PLUS0_PERIOD = 1023;
+    LL_IOP_GRP1_EnableClock(LL_IOP_GRP1_PERIPH_GPIOA);
+    LL_APB1_GRP2_EnableClock(LL_APB1_GRP2_PERIPH_TIM1);
+    LL_APB1_GRP2_ForceReset(LL_APB1_GRP2_PERIPH_TIM1);
+    LL_APB1_GRP2_ReleaseReset(LL_APB1_GRP2_PERIPH_TIM1);
 
-    PORTCON_PORTB_SEL0 &= ~(0
-        // Back light
-        | PORTCON_PORTB_SEL0_B6_MASK
-        );
-    PORTCON_PORTB_SEL0 |= 0
-        // Back light PWM
-        | PORTCON_PORTB_SEL0_B6_BITS_PWMP0_CH0
-        ;
+    // PA8
+    do
+    {
+        LL_GPIO_InitTypeDef InitStruct;
+        InitStruct.Pin = LL_GPIO_PIN_8;
+        InitStruct.Mode = LL_GPIO_MODE_ALTERNATE;
+        InitStruct.Alternate = LL_GPIO_AF_2;
+        InitStruct.Speed = LL_GPIO_SPEED_FREQ_HIGH;
+        InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+        InitStruct.Pull = LL_GPIO_PULL_NO;
+        LL_GPIO_Init(GPIOA, &InitStruct);
+    } while (0);
 
-    PWM_PLUS0_GEN =     
-        PWMPLUS_GEN_CH0_OE_BITS_ENABLE |
-        PWMPLUS_GEN_CH0_OUTINV_BITS_ENABLE |
-        0;
+    do
+    {
+        LL_TIM_OC_InitTypeDef InitStruct;
+        InitStruct.OCMode = LL_TIM_OCMODE_PWM1;
+        InitStruct.OCState = LL_TIM_OCSTATE_ENABLE;
+        InitStruct.OCPolarity = LL_TIM_OCPOLARITY_HIGH;
+        InitStruct.OCIdleState = LL_TIM_OCIDLESTATE_LOW;
+        InitStruct.CompareValue = 0;
+        LL_TIM_OC_Init(TIMx, TIM_CHANNEL, &InitStruct);
+    } while (0);
 
-    PWM_PLUS0_CFG =     
-        PWMPLUS_CFG_CNT_REP_BITS_ENABLE |
-        PWMPLUS_CFG_COUNTER_EN_BITS_ENABLE |
-        0;
+    do
+    {
+        LL_TIM_InitTypeDef InitStruct;
+        InitStruct.ClockDivision = LL_TIM_CLOCKDIVISION_DIV1;
+        InitStruct.CounterMode = LL_TIM_COUNTERMODE_UP;
+        InitStruct.Prescaler = SystemCoreClock / 100000 - 1;
+        InitStruct.Autoreload = 1000 - 1;
+        InitStruct.RepetitionCounter = 0;
+        LL_TIM_Init(TIMx, &InitStruct);
+    } while (0);
+
+    LL_TIM_EnableAllOutputs(TIMx);
+    LL_TIM_EnableCounter(TIMx);
 }
 
 static void BACKLIGHT_Sound(void)
@@ -157,14 +183,12 @@ bool BACKLIGHT_IsOn()
     return backlightOn;
 }
 
-static uint8_t currentBrightness;
+static uint8_t currentBrightness = 0;
 
 void BACKLIGHT_SetBrightness(uint8_t brigtness)
 {
+    LL_TIM_OC_SetCompareCH1(TIMx, value[brigtness] * 1000u / 255u);
     currentBrightness = brigtness;
-    PWM_PLUS0_CH0_COMP = value[brigtness] * 4;
-    //PWM_PLUS0_CH0_COMP = (1 << brigtness) - 1;
-    //PWM_PLUS0_SWLOAD = 1;
 }
 
 uint8_t BACKLIGHT_GetBrightness(void)

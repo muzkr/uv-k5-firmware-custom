@@ -19,6 +19,7 @@
 #define DRIVER_UART_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 extern uint8_t UART_DMA_Buffer[256];
 

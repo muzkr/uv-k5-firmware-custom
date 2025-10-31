@@ -30,7 +30,6 @@
 #endif
 #include "app/scanner.h"
 #include "audio.h"
-#include "bsp/dp32g030/gpio.h"
 #ifdef ENABLE_FMRADIO
     #include "driver/bk1080.h"
 #endif

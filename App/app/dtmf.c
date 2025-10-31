@@ -22,7 +22,6 @@
     #include "app/fm.h"
 #endif
 #include "app/scanner.h"
-#include "bsp/dp32g030/gpio.h"
 #include "audio.h"
 #include "driver/bk4819.h"
 #include "driver/eeprom.h"

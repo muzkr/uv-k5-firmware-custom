@@ -17,16 +17,14 @@
 #include <string.h>
 
 #if !defined(ENABLE_OVERLAY)
-    #include "ARMCM0.h"
+    // #include "ARMCM0.h"
 #endif
 #ifdef ENABLE_FMRADIO
     #include "app/fm.h"
 #endif
 #include "app/uart.h"
 #include "board.h"
-#include "bsp/dp32g030/dma.h"
-#include "bsp/dp32g030/gpio.h"
-#include "driver/aes.h"
+#include "py32f0xx_ll_dma.h"
 #include "driver/backlight.h"
 #include "driver/bk4819.h"
 #include "driver/crc.h"
@@ -41,6 +39,8 @@
 #if defined(ENABLE_OVERLAY)
     #include "sram-overlay.h"
 #endif
+
+#define DMA_CHANNEL LL_DMA_CHANNEL_2
 
 #define UNUSED(x) (void)(x)
 
@@ -489,9 +489,9 @@ bool UART_IsCommandAvailable(void)
     uint16_t Index;
     uint16_t TailIndex;
     uint16_t Size;
-    uint16_t CRC;
+    uint16_t Crc;
     uint16_t CommandLength;
-    uint16_t DmaLength = DMA_CH0->ST & 0xFFFU;
+    uint16_t DmaLength = sizeof(UART_DMA_Buffer) - LL_DMA_GetDataLength(DMA1, DMA_CHANNEL);
 
     while (1)
     {
@@ -572,9 +572,9 @@ bool UART_IsCommandAvailable(void)
             UART_Command.Buffer[i] ^= Obfuscation[i % 16];
     }
     
-    CRC = UART_Command.Buffer[Size] | (UART_Command.Buffer[Size + 1] << 8);
+    Crc = UART_Command.Buffer[Size] | (UART_Command.Buffer[Size + 1] << 8);
 
-    return (CRC_Calculate(UART_Command.Buffer, Size) != CRC) ? false : true;
+    return (CRC_Calculate(UART_Command.Buffer, Size) != Crc) ? false : true;
 }
 
 void UART_HandleCommand(void)

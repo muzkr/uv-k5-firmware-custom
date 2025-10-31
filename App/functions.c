@@ -21,7 +21,6 @@
     #include "app/fm.h"
 #endif
 #include "audio.h"
-#include "bsp/dp32g030/gpio.h"
 #include "dcs.h"
 #include "driver/backlight.h"
 #if defined(ENABLE_FMRADIO)

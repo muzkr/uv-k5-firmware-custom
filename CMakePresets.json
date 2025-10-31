@@ -8,6 +8,7 @@
             "binaryDir": "${sourceDir}/build/${presetName}",
             "toolchainFile": "${sourceDir}/cmake/gcc-arm-none-eabi.cmake",
             "cacheVariables": {
+                "CMAKE_VERBOSE_MAKEFILE": false,
                 "CMAKE_BUILD_TYPE": "Release",
                 "ENABLE_FMRADIO": false,
                 "ENABLE_UART": true,
@@ -76,7 +77,7 @@
             "inherits": "Broadcast",
             "cacheVariables": {
                 "ENABLE_VOICE": false,
-                "ENABLE_SWD": true,
+                "ENABLE_SWD": false,
                 "ENABLE_AIRCOPY": false,
                 "EDITION_STRING": "Custom",
                 "TARGET": "f4hwn.custom"

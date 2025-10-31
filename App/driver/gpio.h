@@ -18,61 +18,67 @@
 #define DRIVER_GPIO_H
 
 #include <stdint.h>
+#include <stdbool.h>
+#include "py32f0xx_ll_gpio.h"
 
-enum GPIOA_PINS {
-    GPIOA_PIN_KEYBOARD_0 = 3,
-    GPIOA_PIN_KEYBOARD_1 = 4,
-    GPIOA_PIN_KEYBOARD_2 = 5,
-    GPIOA_PIN_KEYBOARD_3 = 6,
-    GPIOA_PIN_KEYBOARD_4 = 10, // Shared with I2C!
-    GPIOA_PIN_KEYBOARD_5 = 11, // Shared with I2C!
-    GPIOA_PIN_KEYBOARD_6 = 12, // Shared with voice chip!
-    GPIOA_PIN_KEYBOARD_7 = 13, // Shared with voice chip!
+#define GPIO_MAKE_PIN(Port, PinMask)    ((uint32_t)((((uint32_t)(Port)) << 16) | (0xffff & (PinMask))))
+#define GPIO_PORT(Pin)                  ((GPIO_TypeDef *)(IOPORT_BASE + ((Pin) >> 16)))
+#define GPIO_PIN_MASK(Pin)              (0xffff & (Pin))
 
-    GPIOA_PIN_I2C_SCL    = 10, // Shared with keyboard!
-    GPIOA_PIN_I2C_SDA    = 11, // Shared with keyboard!
-
-    GPIOA_PIN_VOICE_0    = 12, // Shared with keyboard!
-    GPIOA_PIN_VOICE_1    = 13  // Shared with keyboard!
+enum GPIO_PINS
+{
+    GPIO_PIN_PTT            = GPIO_MAKE_PIN(GPIOA, LL_GPIO_PIN_3),
+    GPIO_PIN_BACKLIGHT      = GPIO_MAKE_PIN(GPIOA, LL_GPIO_PIN_8),
+    GPIO_PIN_FLASHLIGHT     = GPIO_MAKE_PIN(GPIOB, LL_GPIO_PIN_6),
+    GPIO_PIN_AUDIO_PATH     = GPIO_MAKE_PIN(GPIOB, LL_GPIO_PIN_7),
+    GPIO_PIN_BK1080         = GPIO_MAKE_PIN(GPIOA, LL_GPIO_PIN_13),
+    GPIO_PIN_VOICE_0        = GPIO_MAKE_PIN(GPIOA, LL_GPIO_PIN_7),
+    GPIO_PIN_VOICE_1        = GPIO_MAKE_PIN(GPIOB, LL_GPIO_PIN_0),
 };
 
-enum GPIOB_PINS {
-    GPIOB_PIN_BACKLIGHT  = 6,
-
-    GPIOB_PIN_ST7565_A0  = 9,
-    GPIOB_PIN_ST7565_RES = 11, // Shared with SWD!
-
-    GPIOB_PIN_SWD_IO     = 11, // Shared with ST7565!
-    GPIOB_PIN_SWD_CLK    = 14,
-
-    GPIOB_PIN_BK1080     = 15
-};
-
-enum GPIOC_PINS {
-    GPIOC_PIN_BK4819_SCN = 0,
-    GPIOC_PIN_BK4819_SCL = 1,
-    GPIOC_PIN_BK4819_SDA = 2,
-
-    GPIOC_PIN_FLASHLIGHT = 3,
-    GPIOC_PIN_AUDIO_PATH = 4,
-    GPIOC_PIN_PTT        = 5
-};
-
-static inline void GPIO_ClearBit(volatile uint32_t *pReg, uint8_t Bit) {
-    *pReg &= ~(1U << Bit);
+static inline void GPIO_SetOutputPin(uint32_t Pin)
+{
+    LL_GPIO_SetOutputPin(GPIO_PORT(Pin), GPIO_PIN_MASK(Pin));
 }
 
-static inline uint8_t GPIO_CheckBit(volatile uint32_t *pReg, uint8_t Bit) {
-    return (*pReg >> Bit) & 1U;
+static inline void GPIO_ResetOutputPin(uint32_t Pin)
+{
+    LL_GPIO_ResetOutputPin(GPIO_PORT(Pin), GPIO_PIN_MASK(Pin));
 }
 
-static inline void GPIO_FlipBit(volatile uint32_t *pReg, uint8_t Bit) {
-    *pReg ^= 1U << Bit;
+static inline void GPIO_TogglePin(uint32_t Pin)
+{
+    LL_GPIO_TogglePin(GPIO_PORT(Pin), GPIO_PIN_MASK(Pin));
 }
 
-static inline void GPIO_SetBit(volatile uint32_t *pReg, uint8_t Bit) {
-    *pReg |= 1U << Bit;
+static inline bool GPIO_IsInputPinSet(uint32_t Pin)
+{
+    return !!LL_GPIO_IsInputPinSet(GPIO_PORT(Pin), GPIO_PIN_MASK(Pin));
+}
+
+static inline void GPIO_EnableAudioPath()
+{
+    GPIO_SetOutputPin(GPIO_PIN_AUDIO_PATH);
+}
+
+static inline void GPIO_DisableAudioPath()
+{
+    GPIO_ResetOutputPin(GPIO_PIN_AUDIO_PATH);
+}
+
+static inline void GPIO_TurnOnBacklight()
+{
+    GPIO_SetOutputPin(GPIO_PIN_BACKLIGHT);
+}
+
+static inline void GPIO_TurnOffBacklight()
+{
+    GPIO_ResetOutputPin(GPIO_PIN_BACKLIGHT);
+}
+
+static inline bool GPIO_IsPttPressed()
+{
+    return !GPIO_IsInputPinSet(GPIO_PIN_PTT);
 }
 
 #endif
-

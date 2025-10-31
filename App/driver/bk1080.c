@@ -14,7 +14,6 @@
  *     limitations under the License.
  */
 
-#include "bsp/dp32g030/gpio.h"
 #include "bk1080.h"
 #include "driver/gpio.h"
 #include "driver/i2c.h"
@@ -49,7 +48,7 @@ void BK1080_Init(uint16_t freq, uint8_t band/*, uint8_t space*/)
     unsigned int i;
 
     if (freq) {
-        GPIO_ClearBit(&GPIOB->DATA, GPIOB_PIN_BK1080);
+        GPIO_ResetOutputPin(GPIO_PIN_BK1080);
 
         if (!gIsInitBK1080) {
             for (i = 0; i < ARRAY_SIZE(BK1080_RegisterTable); i++)
@@ -77,7 +76,7 @@ void BK1080_Init(uint16_t freq, uint8_t band/*, uint8_t space*/)
     }
     else {
         BK1080_WriteRegister(BK1080_REG_02_POWER_CONFIGURATION, 0x0241);
-        GPIO_SetBit(&GPIOB->DATA, GPIOB_PIN_BK1080);
+        GPIO_SetOutputPin(GPIO_PIN_BK1080);
     }
 }
 

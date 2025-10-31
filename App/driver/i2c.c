@@ -1,4 +1,5 @@
-/* Copyright 2023 Dual Tachyon
+/* Copyright 2025 muzkr https://github.com/muzkr
+ * Copyright 2023 Dual Tachyon
  * https://github.com/DualTachyon
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,33 +15,64 @@
  *     limitations under the License.
  */
 
-#include "bsp/dp32g030/gpio.h"
-#include "bsp/dp32g030/portcon.h"
 #include "driver/gpio.h"
 #include "driver/i2c.h"
 #include "driver/systick.h"
 
+#define PIN_SCL     GPIO_MAKE_PIN(GPIOA, LL_GPIO_PIN_5)
+#define PIN_SDA     GPIO_MAKE_PIN(GPIOA, LL_GPIO_PIN_6)
+
+static inline void SCL_Set()
+{
+    GPIO_SetOutputPin(PIN_SCL);
+}
+
+static inline void SCL_Reset()
+{
+    GPIO_ResetOutputPin(PIN_SCL);
+}
+
+static inline void SDA_Set()
+{
+    GPIO_SetOutputPin(PIN_SDA);
+}
+
+static inline void SDA_Reset()
+{
+    GPIO_ResetOutputPin(PIN_SDA);
+}
+
+static inline void SDA_SetDir(bool Output)
+{
+    LL_GPIO_SetPinMode(GPIO_PORT(PIN_SDA), GPIO_PIN_MASK(PIN_SDA), Output ? LL_GPIO_MODE_OUTPUT : LL_GPIO_MODE_INPUT);
+}
+
+static inline bool SDA_IsSet()
+{
+    return GPIO_IsInputPinSet(PIN_SDA);
+}
+
 void I2C_Start(void)
 {
-    GPIO_SetBit(&GPIOA->DATA, GPIOA_PIN_I2C_SDA);
+    SDA_Set();
     SYSTICK_DelayUs(1);
-    GPIO_SetBit(&GPIOA->DATA, GPIOA_PIN_I2C_SCL);
+    SCL_Set();
     SYSTICK_DelayUs(1);
-    GPIO_ClearBit(&GPIOA->DATA, GPIOA_PIN_I2C_SDA);
+    SDA_Reset();
     SYSTICK_DelayUs(1);
-    GPIO_ClearBit(&GPIOA->DATA, GPIOA_PIN_I2C_SCL);
+    SCL_Reset();
     SYSTICK_DelayUs(1);
 }
 
 void I2C_Stop(void)
 {
-    GPIO_ClearBit(&GPIOA->DATA, GPIOA_PIN_I2C_SDA);
+    SDA_Reset();
     SYSTICK_DelayUs(1);
-    GPIO_ClearBit(&GPIOA->DATA, GPIOA_PIN_I2C_SCL);
+    SCL_Reset();
     SYSTICK_DelayUs(1);
-    GPIO_SetBit(&GPIOA->DATA, GPIOA_PIN_I2C_SCL);
+    SCL_Set();
     SYSTICK_DelayUs(1);
-    GPIO_SetBit(&GPIOA->DATA, GPIOA_PIN_I2C_SDA);
+    SDA_Set();
     SYSTICK_DelayUs(1);
 }
 
@@ -48,39 +80,35 @@ uint8_t I2C_Read(bool bFinal)
 {
     uint8_t i, Data;
 
-    PORTCON_PORTA_IE |= PORTCON_PORTA_IE_A11_BITS_ENABLE;
-    PORTCON_PORTA_OD &= ~PORTCON_PORTA_OD_A11_MASK;
-    GPIOA->DIR &= ~GPIO_DIR_11_MASK;
+    SDA_SetDir(false);
 
     Data = 0;
     for (i = 0; i < 8; i++) {
-        GPIO_ClearBit(&GPIOA->DATA, GPIOA_PIN_I2C_SCL);
+        SCL_Reset();
         SYSTICK_DelayUs(1);
-        GPIO_SetBit(&GPIOA->DATA, GPIOA_PIN_I2C_SCL);
+        SCL_Set();
         SYSTICK_DelayUs(1);
         Data <<= 1;
         SYSTICK_DelayUs(1);
-        if (GPIO_CheckBit(&GPIOA->DATA, GPIOA_PIN_I2C_SDA)) {
+        if (SDA_IsSet()) {
             Data |= 1U;
         }
-        GPIO_ClearBit(&GPIOA->DATA, GPIOA_PIN_I2C_SCL);
+        SCL_Reset();
         SYSTICK_DelayUs(1);
     }
 
-    PORTCON_PORTA_IE &= ~PORTCON_PORTA_IE_A11_MASK;
-    PORTCON_PORTA_OD |= PORTCON_PORTA_OD_A11_BITS_ENABLE;
-    GPIOA->DIR |= GPIO_DIR_11_BITS_OUTPUT;
-    GPIO_ClearBit(&GPIOA->DATA, GPIOA_PIN_I2C_SCL);
+    SDA_SetDir(true);
+    SCL_Reset();
     SYSTICK_DelayUs(1);
     if (bFinal) {
-        GPIO_SetBit(&GPIOA->DATA, GPIOA_PIN_I2C_SDA);
+        SDA_Set();
     } else {
-        GPIO_ClearBit(&GPIOA->DATA, GPIOA_PIN_I2C_SDA);
+        SDA_Reset();
     }
     SYSTICK_DelayUs(1);
-    GPIO_SetBit(&GPIOA->DATA, GPIOA_PIN_I2C_SCL);
+    SCL_Set();
     SYSTICK_DelayUs(1);
-    GPIO_ClearBit(&GPIOA->DATA, GPIOA_PIN_I2C_SCL);
+    SCL_Reset();
     SYSTICK_DelayUs(1);
 
     return Data;
@@ -91,43 +119,39 @@ int I2C_Write(uint8_t Data)
     uint8_t i;
     int ret = -1;
 
-    GPIO_ClearBit(&GPIOA->DATA, GPIOA_PIN_I2C_SCL);
+    SCL_Reset();
     SYSTICK_DelayUs(1);
     for (i = 0; i < 8; i++) {
         if ((Data & 0x80) == 0) {
-            GPIO_ClearBit(&GPIOA->DATA, GPIOA_PIN_I2C_SDA);
+            SDA_Reset();
         } else {
-            GPIO_SetBit(&GPIOA->DATA, GPIOA_PIN_I2C_SDA);
+            SDA_Set();
         }
         Data <<= 1;
         SYSTICK_DelayUs(1);
-        GPIO_SetBit(&GPIOA->DATA, GPIOA_PIN_I2C_SCL);
+        SCL_Set();
         SYSTICK_DelayUs(1);
-        GPIO_ClearBit(&GPIOA->DATA, GPIOA_PIN_I2C_SCL);
+        SCL_Reset();
         SYSTICK_DelayUs(1);
     }
 
-    PORTCON_PORTA_IE |= PORTCON_PORTA_IE_A11_BITS_ENABLE;
-    PORTCON_PORTA_OD &= ~PORTCON_PORTA_OD_A11_MASK;
-    GPIOA->DIR &= ~GPIO_DIR_11_MASK;
-    GPIO_SetBit(&GPIOA->DATA, GPIOA_PIN_I2C_SDA);
+    SDA_SetDir(false);
+    SDA_Set();
     SYSTICK_DelayUs(1);
-    GPIO_SetBit(&GPIOA->DATA, GPIOA_PIN_I2C_SCL);
+    SCL_Set();
     SYSTICK_DelayUs(1);
 
     for (i = 0; i < 255; i++) {
-        if (GPIO_CheckBit(&GPIOA->DATA, GPIOA_PIN_I2C_SDA) == 0) {
+        if (!SDA_IsSet()) {
             ret = 0;
             break;
         }
     }
 
-    GPIO_ClearBit(&GPIOA->DATA, GPIOA_PIN_I2C_SCL);
+    SCL_Reset();
     SYSTICK_DelayUs(1);
-    PORTCON_PORTA_IE &= ~PORTCON_PORTA_IE_A11_MASK;
-    PORTCON_PORTA_OD |= PORTCON_PORTA_OD_A11_BITS_ENABLE;
-    GPIOA->DIR |= GPIO_DIR_11_BITS_OUTPUT;
-    GPIO_SetBit(&GPIOA->DATA, GPIOA_PIN_I2C_SDA);
+    SDA_SetDir(true);
+    SDA_Set();
 
     return ret;
 }
