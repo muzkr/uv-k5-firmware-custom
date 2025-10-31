@@ -136,10 +136,12 @@
                 "ENABLE_AUDIO_BAR": false,
                 "ENABLE_FEAT_F4HWN_RESUME_STATE": false,
                 "ENABLE_FEAT_F4HWN_CHARGING_C": false,
-                "ENABLE_FEAT_F4HWN_INV": true,
+                "ENABLE_FEAT_F4HWN_INV": false,
                 "ENABLE_FEAT_F4HWN_CTR": false,
-                "ENABLE_FEAT_F4HWN_NARROWER": true,
+                "ENABLE_FEAT_F4HWN_NARROWER": false,
                 "ENABLE_FEAT_F4HWN_RESCUE_OPS": false,
+                "ENABLE_SMALL_BOLD": false,
+                "ENABLE_CUSTOM_MENU_LAYOUT": false,
                 "EDITION_STRING": "Basic",
                 "TARGET": "f4hwn.basic"
             }
