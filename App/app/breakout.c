@@ -406,7 +406,7 @@ static void OnKeyDown(uint8_t key)
 KEY_Code_t GetKey()
 {
     KEY_Code_t btn = KEYBOARD_Poll();
-    if (btn == KEY_INVALID && !GPIO_CheckBit(&GPIOC->DATA, GPIOC_PIN_PTT))
+    if (btn == KEY_INVALID && GPIO_IsPttPressed())
     {
         btn = KEY_PTT;
     }
