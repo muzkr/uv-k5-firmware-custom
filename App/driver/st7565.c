@@ -78,6 +78,8 @@ static void DelayBusy(uint32_t Delay) {
     }
 }
 
+static void SPI_WriteByte(uint8_t Value);
+
 uint8_t gStatusLine[LCD_WIDTH];
 uint8_t gFrameBuffer[FRAME_LINES][LCD_WIDTH];
 
@@ -87,7 +89,7 @@ static void DrawLine(uint8_t column, uint8_t line, const uint8_t * lineBuffer, u
     A0_Set();
     for (unsigned i = 0; i < size_defVal; i++)
     {
-        ST7565_WriteByte(lineBuffer ? lineBuffer[i] : size_defVal);
+        SPI_WriteByte(lineBuffer ? lineBuffer[i] : size_defVal);
     }
 }
 
@@ -271,6 +273,8 @@ uint8_t cmds[] = {
         {
             ST7565_Cmd(i);
         }
+
+        CS_Release();
     }
     #endif
 
@@ -298,7 +302,12 @@ uint8_t cmds[] = {
     
 void ST7565_Init(void)
 {
-    ST7565_HardwareReset();
+    CS_Release();
+    SCK_Reset();
+    SDA_Reset();
+    SYSTEM_DelayMs(1);
+
+    // ST7565_HardwareReset();
     CS_Assert();
     ST7565_WriteByte(ST7565_CMD_SOFTWARE_RESET);   // software reset
     SYSTEM_DelayMs(120);
@@ -359,15 +368,19 @@ void ST7565_HardwareReset(void)
 void ST7565_SelectColumnAndLine(uint8_t Column, uint8_t Line)
 {
     A0_Reset();
-    ST7565_WriteByte(Line + 176);
-    ST7565_WriteByte(((Column >> 4) & 0x0F) | 0x10);
-    ST7565_WriteByte((Column >> 0) & 0x0F);
+    SPI_WriteByte(Line + 176);
+    SPI_WriteByte(((Column >> 4) & 0x0F) | 0x10);
+    SPI_WriteByte((Column >> 0) & 0x0F);
 }
 
 void ST7565_WriteByte(uint8_t Value)
 {
     A0_Reset();
+    SPI_WriteByte(Value);
+}
 
+static void SPI_WriteByte(uint8_t Value)
+{
     SCK_Reset();
 
     for (int i = 0; i < 8; i++)
