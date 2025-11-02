@@ -34,7 +34,7 @@ class Programmer:
 
     def loop(self) -> bool:
         next = self._state.loop()
-        if isinstance(next, str) and "quit" == _QUIT:
+        if isinstance(next, str) and next == _QUIT:
             return False
 
         if next:
