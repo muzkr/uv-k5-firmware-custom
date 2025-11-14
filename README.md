@@ -1,6 +1,6 @@
 # :memo: Notes on the v2 Branch
 
-This is a [F4HWN](https://github.com/armel/uv-k5-firmware-custom) port to the V2 hardware. The purpose of the effort is to provide the small number of users who unfortunately purchased the V2 with an alternative option for obtaining useful firmware (in this case, F4HWN), beyond the stock firmware. Future updates for F4HWN will be merged in, as long as this firmware remains useful. No new features will be provided beyond the F4HWN feature set though I will strive to include as many as possible.
+This is a [F4HWN](https://github.com/armel/uv-k5-firmware-custom) port to the V2 hardware. The purpose of the effort is to provide the small number of users who ~~un~~fortunately purchased the V2 with an alternative option for obtaining useful firmware (in this case, F4HWN), beyond the stock firmware. Future updates for F4HWN will be merged in, as long as this firmware remains useful. No new features will be provided beyond the F4HWN feature set though I will strive to include as many as possible.
 
 This section of the README is reserved for the v2 branch. I don't plan to change the others; they serve as reference material but aren't 100% applicable to the v2 branch.
 
