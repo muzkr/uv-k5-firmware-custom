@@ -1,0 +1,14 @@
+
+FROM debian:12-slim
+RUN apt-get update && apt-get install --no-install-recommends -y python3 python3-venv python3-pip wget cmake ninja-build make
+
+WORKDIR /build
+
+RUN wget https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v13.3.1-1.1/xpack-arm-none-eabi-gcc-13.3.1-1.1-linux-x64.tar.gz \
+    && tar xzf xpack-arm-none-eabi-gcc-13.3.1-1.1-linux-x64.tar.gz -C .
+ENV PATH="/build/xpack-arm-none-eabi-gcc-13.3.1-1.1-linux-x64/bin:$PATH"
+
+RUN python3 -m venv .venv
+ENV PATH="/build/.venv/bin:$PATH"
+COPY requirements.txt .
+RUN pip install -r requirements.txt
