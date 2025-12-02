@@ -4,17 +4,17 @@ This is a [F4HWN](https://github.com/armel/uv-k5-firmware-custom) port to the V2
 
 This section of the README is reserved for the v2 branch. I don't plan to change the others; they serve as reference material but aren't 100% applicable to the v2 branch.
 
-:white_check_mark: The building system has changed
+- :white_check_mark: The building system has changed
 
 If the pre-built binary firmware provided by this project does not meet your needs, custom building is possible. Please look for instructions in the Discussions section.
 
-:white_check_mark: This project is a port of (and will continue to be so), but independent of, F4HWN
+- :white_check_mark: This project is a port of (and will continue to be so), but independent of, F4HWN
 
 All credits go to F4HWN, all blame is mine. Any questions/suggestions/criticisms may be raised here; The owner or maintainers of F4HWN are under no obligation to address them. 
 
-:white_check_mark: Quality contributions are welcome
+- :white_check_mark: Quality contributions are welcome
 
-:white_check_mark: Make good use of the Discussions section
+- :white_check_mark: Make good use of the Discussions section
 
 
 # Stats
