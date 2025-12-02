@@ -369,6 +369,36 @@ static void ResetPeak()
     peak.rssi = 0;
 }
 
+#ifdef ENABLE_FEAT_F4HWN_SPECTRUM
+    static void setTailFoundInterrupt()
+    {
+        BK4819_WriteRegister(BK4819_REG_3F, BK4819_REG_02_CxCSS_TAIL | BK4819_REG_02_SQUELCH_FOUND);
+    }
+
+    static bool checkIfTailFound()
+    {
+      uint16_t interrupt_status_bits;
+      // if interrupt waiting to be handled
+      if(BK4819_ReadRegister(BK4819_REG_0C) & 1u) {
+        // reset the interrupt
+        BK4819_WriteRegister(BK4819_REG_02, 0);
+        // fetch the interrupt status bits
+        interrupt_status_bits = BK4819_ReadRegister(BK4819_REG_02);
+        // if tail found interrupt
+        if (interrupt_status_bits & BK4819_REG_02_CxCSS_TAIL)
+        {
+            listenT = 0;
+            // disable interrupts
+            BK4819_WriteRegister(BK4819_REG_3F, 0);
+            // reset the interrupt
+            BK4819_WriteRegister(BK4819_REG_02, 0);
+            return true;
+        }
+      }
+      return false;
+    }
+#endif
+
 bool IsCenterMode() { return settings.scanStepIndex < S_STEP_2_5kHz; }
 // scan step in 0.01khz
 uint16_t GetScanStep() { return scanStepValues[settings.scanStepIndex]; }
@@ -378,11 +408,24 @@ uint16_t GetStepsCount()
 #ifdef ENABLE_SCAN_RANGES
     if (gScanRangeStart)
     {
-        return (gScanRangeStop - gScanRangeStart) / GetScanStep();
+        uint32_t range = gScanRangeStop - gScanRangeStart;
+        uint16_t step = GetScanStep();
+        return (range / step) + 1;  // +1 to include up limit
     }
 #endif
     return 128 >> settings.stepsCount;
 }
+
+#ifdef ENABLE_SCAN_RANGES
+static uint16_t GetStepsCountDisplay()
+{
+    if (gScanRangeStart)
+    {
+        return (gScanRangeStop - gScanRangeStart) / GetScanStep();
+    }
+    return GetStepsCount();
+}
+#endif
 
 uint32_t GetBW() { return GetStepsCount() * GetScanStep(); }
 uint32_t GetFStart()
@@ -390,7 +433,16 @@ uint32_t GetFStart()
     return IsCenterMode() ? currentFreq - (GetBW() >> 1) : currentFreq;
 }
 
-uint32_t GetFEnd() { return currentFreq + GetBW(); }
+uint32_t GetFEnd()
+{
+#ifdef ENABLE_SCAN_RANGES
+    if (gScanRangeStart)
+    {
+        return gScanRangeStop;
+    }
+#endif
+    return currentFreq + GetBW();
+}
 
 static void TuneToPeak()
 {
@@ -447,9 +499,14 @@ static void ToggleAudio(bool on)
 
 static void ToggleRX(bool on)
 {
+    #ifdef ENABLE_FEAT_F4HWN_SPECTRUM
+    if (isListening == on) {
+        return;
+    }
+    #endif
     isListening = on;
 
-    RADIO_SetupAGC(on, lockAGC);
+    RADIO_SetupAGC(settings.modulationType == MODULATION_AM, lockAGC);
     BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, on);
 
     ToggleAudio(on);
@@ -458,8 +515,14 @@ static void ToggleRX(bool on)
 
     if (on)
     {
+    #ifdef ENABLE_FEAT_F4HWN_SPECTRUM
+        listenT = 100;
+        BK4819_WriteRegister(0x43, listenBWRegValues[settings.listenBw]);
+        setTailFoundInterrupt();
+    #else
         listenT = 1000;
         BK4819_WriteRegister(0x43, listenBWRegValues[settings.listenBw]);
+    #endif
     }
     else
     {
@@ -876,23 +939,47 @@ uint8_t Rssi2Y(uint16_t rssi)
         uint16_t steps = GetStepsCount();
         // max bars at 128 to correctly draw larger numbers of samples
         uint8_t bars = (steps > 128) ? 128 : steps;
-        // shift to center bar on freq marker
-        uint8_t shift_graph = 64 / steps + 1;
 
         uint8_t ox = 0;
-        for (uint8_t i = 0; i < 128; ++i)
+        for (uint8_t i = 0; i < bars; ++i)
         {
-            uint16_t rssi = rssiHistory[i >> settings.stepsCount];
+            uint16_t rssi = rssiHistory[(bars>128) ? i >> settings.stepsCount : i];
+            
+#ifdef ENABLE_SCAN_RANGES
+            uint8_t x;
+            if (gScanRangeStart && bars > 1)
+            {
+                // Total width units = (bars - 1) full bars + 2 half bars = bars
+                // First bar: half width, middle bars: full width, last bar: half width
+                // Scale: 128 pixels / (bars - 1) = pixels per full bar
+                uint16_t fullWidth = 128 * 2 / (bars - 1);  // x2 for precision
+                
+                if (i == 0)
+                {
+                    x = fullWidth / 4;  // half of half (because fullWidth is x2)
+                }
+                else
+                {
+                    // Position = half + (i-1) full bars + current bar
+                    x = fullWidth / 4 + (uint16_t)i * fullWidth / 2;
+                    if (i == bars - 1) x = 128;  // Last bar ends at screen edge
+                }
+            }
+            else
+#endif
+            {
+                uint8_t shift_graph = 64 / steps + 1;
+                x = i * 128 / bars + shift_graph;
+            }
+
             if (rssi != RSSI_MAX_VALUE)
             {
-                // stretch bars to fill the screen width
-                uint8_t x = i * 128 / bars + shift_graph;
                 for (uint8_t xx = ox; xx < x; xx++)
                 {
                     DrawVLine(Rssi2Y(rssi), DrawingEndY, xx, true);
                 }
-                ox = x;
             }
+            ox = x;
         }
     }
 #else
@@ -950,36 +1037,33 @@ static void DrawStatus()
 #ifdef ENABLE_FEAT_F4HWN_SPECTRUM
 static void ShowChannelName(uint32_t f)
 {
-    unsigned int i;
-    char String[12];
-    memset(String, 0, sizeof(String));
+    static uint32_t channelF = 0;
+    static char channelName[12]; 
 
     if (isListening)
     {
-        for (i = 0; IS_MR_CHANNEL(i); i++)
-        {
-            if (RADIO_CheckValidChannel(i, false, 0))
+        if (f != channelF) {
+            channelF = f;
+            unsigned int i;
+            memset(channelName, 0, sizeof(channelName));
+            for (i = 0; IS_MR_CHANNEL(i); i++)
             {
-                if (SETTINGS_FetchChannelFrequency(i) == f)
+                if (RADIO_CheckValidChannel(i, false, 0))
                 {
-                    SETTINGS_FetchChannelName(String, i);
-                    if (String[0] != 0) {
-                        UI_PrintStringSmallBufferNormal(String, gStatusLine + 36);
-                        //GUI_DisplaySmallest(String, 127, 1, true, true);
+                    if (SETTINGS_FetchChannelFrequency(i) == channelF)
+                    {
+                        SETTINGS_FetchChannelName(channelName, i);
+                        break;
                     }
-                    break;
                 }
             }
+        }
+        if (channelName[0] != 0) {
+            UI_PrintStringSmallBufferNormal(channelName, gStatusLine + 36);
         }
     }
     else
     {
-        /*
-        for (int i = 36; i < 100; i++)
-        {
-            gStatusLine[i] = 0b00000000;
-        }
-        */
         memset(&gStatusLine[36], 0, 100 - 28);
     }
     ST7565_BlitStatusLine();
@@ -1006,7 +1090,16 @@ static void DrawNums()
 
     if (currentState == SPECTRUM)
     {
-        sprintf(String, "%ux", GetStepsCount());
+#ifdef ENABLE_SCAN_RANGES
+        if (gScanRangeStart)
+        {
+            sprintf(String, "%ux", GetStepsCountDisplay());
+        }
+        else
+#endif
+        {
+            sprintf(String, "%ux", GetStepsCount());
+        }
         GUI_DisplaySmallest(String, 0, 1, false, true);
         sprintf(String, "%u.%02uk", GetScanStep() / 100, GetScanStep() % 100);
         GUI_DisplaySmallest(String, 0, 7, false, true);
@@ -1310,9 +1403,6 @@ static void RenderStatus()
 {
     memset(gStatusLine, 0, sizeof(gStatusLine));
     DrawStatus();
-#ifdef ENABLE_FEAT_F4HWN_SPECTRUM
-    ShowChannelName(peak.f);
-#endif
     ST7565_BlitStatusLine();
 }
 
@@ -1504,7 +1594,7 @@ static void UpdateScan()
         return;
     }
 
-    if (scanInfo.measurementsCount < 128)
+    if (! (scanInfo.measurementsCount >> 7)) // if (scanInfo.measurementsCount < 128)
         memset(&rssiHistory[scanInfo.measurementsCount], 0,
                sizeof(rssiHistory) - scanInfo.measurementsCount * sizeof(rssiHistory[0]));
 
@@ -1531,13 +1621,20 @@ static void UpdateStill()
     peak.rssi = scanInfo.rssi;
     AutoTriggerLevel();
 
-    ToggleRX(IsPeakOverLevel() || monitorMode);
+    if (IsPeakOverLevel() || monitorMode) {
+        ToggleRX(true);
+    }
 }
 
 static void UpdateListening()
 {
     preventKeypress = false;
+    #ifdef ENABLE_FEAT_F4HWN_SPECTRUM
+    bool tailFound = checkIfTailFound();
+    if (tailFound)
+    #else
     if (currentState == STILL)
+    #endif
     {
         listenT = 0;
     }
@@ -1562,11 +1659,19 @@ static void UpdateListening()
     peak.rssi = scanInfo.rssi;
     redrawScreen = true;
 
-    if (IsPeakOverLevel() || monitorMode)
-    {
-        listenT = 1000;
-        return;
-    }
+    #ifdef ENABLE_FEAT_F4HWN_SPECTRUM
+        if ((IsPeakOverLevel() && !tailFound) || monitorMode)
+        {
+            listenT = 100;
+            return;
+        }
+    #else
+        if (IsPeakOverLevel() || monitorMode)
+        {
+            listenT = 1000;
+            return;
+        }
+    #endif
 
     ToggleRX(false);
     ResetScanStats();

@@ -31,6 +31,9 @@
 #include "../helper/battery.h"
 #include "../misc.h"
 #include "../settings.h"
+#ifdef ENABLE_FEAT_F4HWN
+    #include "../version.h"
+#endif
 #include "helper.h"
 #include "inputbox.h"
 #include "menu.h"
@@ -1112,7 +1115,7 @@ void UI_DisplayMenu(void)
             break;
 
         case MENU_TX_LOCK:
-            if(TX_freq_check(gEeprom.VfoInfo[gEeprom.TX_VFO].pRX->Frequency) == 0)
+            if(TX_freq_check(gEeprom.VfoInfo[gEeprom.TX_VFO].pTX->Frequency) == 0)
             {
                 strcpy(String, "Inside\nF Lock\nPlan");
             }
@@ -1225,16 +1228,8 @@ void UI_DisplayMenu(void)
 
                 UI_PrintStringSmallNormal(edit, 54, 127, 1);
 
-                #if defined(ENABLE_SPECTRUM) && defined(ENABLE_FMRADIO)
-                    UI_PrintStringSmallNormal("Basic", 54, 127, 6);
-                #elif defined(ENABLE_FEAT_F4HWN_GAME)
-                    UI_PrintStringSmallNormal("Game", 54, 127, 6);
-                #elif defined(ENABLE_SPECTRUM)
-                    UI_PrintStringSmallNormal("Bandscope", 54, 127, 6);
-                #elif defined(ENABLE_FMRADIO)
-                    UI_PrintStringSmallNormal("Broadcast", 54, 127, 6);
-                #elif defined(ENABLE_FEAT_F4HWN_RESCUE_OPS)
-                    UI_PrintStringSmallNormal("RescueOps", 54, 127, 6);
+                #ifdef ENABLE_FEAT_F4HWN
+                    UI_PrintStringSmallNormal(Edition, 54, 127, 6);
                 #endif
 
                 y = 2;

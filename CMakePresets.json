@@ -69,16 +69,21 @@
                 "ENABLE_UART_RW_BK_REGS": false,
                 "ENABLE_SWD": false,
                 "VERSION_STRING_1": "v0.22",
-                "VERSION_STRING_2": "v4.2"
+                "VERSION_STRING_2": "v4.3"
             }
         },
         {
             "name": "Custom",
-            "inherits": "Broadcast",
+            "inherits": "default",
             "cacheVariables": {
-                "ENABLE_VOICE": false,
-                "ENABLE_SWD": false,
-                "ENABLE_AIRCOPY": false,
+                "ENABLE_FMRADIO": true,
+                "ENABLE_SPECTRUM": false,
+                "ENABLE_CTCSS_TAIL_PHASE_SHIFT": true,
+                "ENABLE_F_CAL_MENU": true,
+                "ENABLE_TX_WHEN_AM": true,
+                "ENABLE_BOOT_BEEPS": true,
+                "ENABLE_AIRCOPY": true,
+                "ENABLE_FEAT_F4HWN": true,
                 "EDITION_STRING": "Custom",
                 "TARGET": "f4hwn.custom"
             }
@@ -97,6 +102,7 @@
                 "ENABLE_FEAT_F4HWN_GMRS_FRS_MURS": true,
                 "ENABLE_NOAA": false,
                 "ENABLE_FEAT_F4HWN_RESCUE_OPS": false,
+                "ENABLE_FEAT_F4HWN_SLEEP": false,
                 "EDITION_STRING": "Bandscope",
                 "TARGET": "f4hwn.bandscope"
             }
@@ -130,18 +136,21 @@
                 "ENABLE_FEAT_F4HWN_SCREENSHOT": false,
                 "ENABLE_FEAT_F4HWN_GAME": false,
                 "ENABLE_FEAT_F4HWN_SPECTRUM": false,
-                "ENABLE_FEAT_F4HWN_PMR": true,
-                "ENABLE_FEAT_F4HWN_GMRS_FRS_MURS": true,
+                "ENABLE_FEAT_F4HWN_PMR": false,
+                "ENABLE_FEAT_F4HWN_GMRS_FRS_MURS": false,
                 "ENABLE_NOAA": false,
                 "ENABLE_AUDIO_BAR": false,
                 "ENABLE_FEAT_F4HWN_RESUME_STATE": false,
                 "ENABLE_FEAT_F4HWN_CHARGING_C": false,
-                "ENABLE_FEAT_F4HWN_INV": false,
                 "ENABLE_FEAT_F4HWN_CTR": false,
-                "ENABLE_FEAT_F4HWN_NARROWER": false,
                 "ENABLE_FEAT_F4HWN_RESCUE_OPS": false,
-                "ENABLE_SMALL_BOLD": false,
+                "ENABLE_FEAT_F4HWN_SLEEP": false,
+                "ENABLE_FEAT_F4HWN_NARROWER": false,
+                "ENABLE_FEAT_F4HWN_INV": false,
+                "ENABLE_FEAT_F4HWN_CA": false,
                 "ENABLE_CUSTOM_MENU_LAYOUT": false,
+                "ENABLE_KEEP_MEM_NAME": false,
+                "ENABLE_COPY_CHAN_TO_VFO": false,
                 "EDITION_STRING": "Basic",
                 "TARGET": "f4hwn.basic"
             }
